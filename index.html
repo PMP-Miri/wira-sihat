@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Misi Wira Sihat: Permainan Pemakanan Kanak-Kanak</title>
+  
+  <!-- MediaPipe Libraries untuk Hand Tracking -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    :root {
+      --bg-dark: #1e1b4b;
+      --card-bg: rgba(30, 27, 75, 0.90);
+      --wira-green: #10b981;
+      --jajan-red: #f43f5e;
+      --sunny-yellow: #facc15;
+      --sky-blue: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: #ffffff;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+
+    /* Kamera sebagai latar belakang cermin */
+    #webcam-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      opacity: 0.42;
+      z-index: 1;
+    }
+
+    /* Lapisan Antaramuka Utama */
+    #game-layer {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 14px 20px;
+    }
+
+    /* Bar Atas */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-bg);
+      padding: 12px 20px;
+      border-radius: 18px;
+      border: 2px solid rgba(250, 204, 21, 0.4);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .brand-title {
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: var(--sunny-yellow);
+      letter-spacing: 0.3px;
+    }
+
+    .privacy-note {
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      margin-top: 2px;
+    }
+
+    .stats-box {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .stat-item {
+      text-align: right;
+      padding-right: 6px;
+    }
+
+    .stat-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: #fde68a;
+      font-weight: 700;
+    }
+
+    .stat-value {
+      font-size: 1.45rem;
+      font-weight: 900;
+      color: #ffffff;
+    }
+
+    .btn-control {
+      background: #312e81;
+      color: #ffffff;
+      border: 2px solid #4f46e5;
+      padding: 8px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.82rem;
+    }
+
+    .btn-report {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--sky-blue);
+      color: var(--sky-blue);
+    }
+
+    /* Arahan Mudah Kanak-Kanak */
+    .kid-banner {
+      background: rgba(15, 23, 42, 0.9);
+      border: 2px solid var(--sunny-yellow);
+      color: #ffffff;
+      padding: 10px 22px;
+      border-radius: 30px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      text-align: center;
+      margin: 0 auto;
+      width: fit-content;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+
+    /* Susunan Utama: Zon Kiri - Kad Makanan Tengah - Zon Kanan */
+    .play-arena {
+      display: grid;
+      grid-template-columns: 1fr 1.15fr 1fr;
+      gap: 20px;
+      align-items: stretch;
+      height: 68vh;
+      max-height: 520px;
+      margin: auto 0;
+    }
+
+    /* Zon Jawapan Gergasi Kiri & Kanan */
+    .kid-zone {
+      border-radius: 28px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      text-align: center;
+      border: 5px solid transparent;
+      transition: transform 0.15s, background-color 0.15s, box-shadow 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .zone-wira {
+      background: rgba(16, 185, 129, 0.28);
+      border-color: var(--wira-green);
+      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.25);
+    }
+
+    .zone-jajan {
+      background: rgba(244, 63, 94, 0.28);
+      border-color: var(--jajan-red);
+      box-shadow: 0 10px 30px rgba(244, 63, 94, 0.25);
+    }
+
+    .kid-zone.active-hover {
+      transform: scale(1.04);
+      border-color: #ffffff;
+      background: rgba(255, 255, 255, 0.32);
+    }
+
+    .zone-tag {
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .zone-wira .zone-tag { background: var(--wira-green); color: #064e3b; }
+    .zone-jajan .zone-tag { background: var(--jajan-red); color: #ffffff; }
+
+    .zone-big-title {
+      font-size: 1.75rem;
+      font-weight: 900;
+      line-height: 1.2;
+      margin: 12px 0 8px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+
+    .zone-sub {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      line-height: 1.35;
+    }
+
+    .zone-icon-box {
+      width: 90px;
+      height: 90px;
+      margin: 10px 0;
+    }
+
+    /* Kad Makanan Tengah dengan Ilustrasi SVG */
+    .center-card {
+      background: #ffffff;
+      color: #0f172a;
+      border-radius: 30px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.6);
+      border: 6px solid var(--sunny-yellow);
+      position: relative;
+    }
+
+    .svg-illustration {
+      width: 170px;
+      height: 170px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .svg-illustration svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .food-kid-title {
+      font-size: 1.7rem;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .food-kid-question {
+      font-size: 1rem;
+      font-weight: 800;
+      color: #4f46e5;
+      background: #e0e7ff;
+      padding: 6px 16px;
+      border-radius: 14px;
+    }
+
+    /* Bar Masa Tahan */
+    .dwell-bar-bg {
+      width: 100%;
+      height: 16px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: auto;
+      border: 2px solid rgba(255,255,255,0.3);
+    }
+
+    .dwell-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--sunny-yellow);
+      transition: width 0.04s linear;
+    }
+
+    /* Kursor Tangan Lebih Besar untuk Kanak-Kanak */
+    #hand-cursor {
+      position: fixed;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      border: 5px solid var(--sunny-yellow);
+      background: rgba(250, 204, 21, 0.35);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 22px rgba(250, 204, 21, 0.95);
+    }
+
+    #hand-cursor::after {
+      content: "";
+      width: 14px;
+      height: 14px;
+      background: #ffffff;
+      border-radius: 50%;
+    }
+
+    /* Notifikasi Maklum Balas Ceria */
+    #feedback-toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      background: rgba(15, 23, 42, 0.97);
+      border: 5px solid var(--sunny-yellow);
+      padding: 28px 34px;
+      border-radius: 28px;
+      text-align: center;
+      z-index: 200;
+      max-width: 520px;
+      width: 92%;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.85);
+    }
+
+    #feedback-toast.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .fb-status {
+      font-size: 1.8rem;
+      font-weight: 900;
+      margin-bottom: 10px;
+    }
+
+    .fb-fact {
+      font-size: 1.15rem;
+      font-weight: 700;
+      line-height: 1.45;
+      color: #f8fafc;
+    }
+
+    /* Modal Tamat & Laporan */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.94);
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-box {
+      background: #1e1b4b;
+      border: 4px solid var(--sunny-yellow);
+      border-radius: 28px;
+      padding: 32px;
+      max-width: 520px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .modal-title {
+      font-size: 1.9rem;
+      font-weight: 900;
+      color: var(--sunny-yellow);
+      margin-bottom: 10px;
+    }
+
+    .modal-score {
+      font-size: 3.2rem;
+      font-weight: 900;
+      margin: 14px 0;
+      color: #10b981;
+    }
+
+    .btn-primary {
+      background: var(--sunny-yellow);
+      color: #0f172a;
+      font-weight: 900;
+      font-size: 1.15rem;
+      padding: 14px 30px;
+      border: none;
+      border-radius: 16px;
+      cursor: pointer;
+      margin-top: 18px;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 0.9rem;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    .report-summary {
+      background: #0f172a;
+      padding: 16px;
+      border-radius: 14px;
+      margin: 16px 0;
+      text-align: left;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+
+    @media (max-width: 820px) {
+      .play-arena {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto 1fr;
+        height: 72vh;
+      }
+      .center-card {
+        grid-column: 1 / span 2;
+        grid-row: 1;
+        padding: 14px;
+        flex-direction: row;
+        gap: 16px;
+        text-align: left;
+      }
+      .svg-illustration { width: 100px; height: 100px; margin-bottom: 0; }
+      .zone-big-title { font-size: 1.3rem; }
+      .zone-icon-box { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Latar Belakang Video Kamera -->
+  <video id="webcam-video" playsinline></video>
+
+  <!-- Kursor Tangan -->
+  <div id="hand-cursor"></div>
+
+  <!-- Antaramuka Utama -->
+  <div id="game-layer">
+    <div class="top-bar">
+      <div>
+        <div class="brand-title">Misi Wira Sihat: Pilih Makanan Kuat & Pintar!</div>
+        <div class="privacy-note" id="cam-status">Mencari kamera... (Boleh juga sentuh skrin). Tiada video dirakam.</div>
+      </div>
+      <div class="stats-box">
+        <div class="stat-item">
+          <div class="stat-label">Makanan</div>
+          <div class="stat-value" id="q-counter">1 / 10</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Bintang</div>
+          <div class="stat-value" id="score-val">0</div>
+        </div>
+        <button class="btn-control btn-report" id="btn-open-report" onclick="openReportModal()">Laporan (0)</button>
+        <button class="btn-control" onclick="resetGame()">Mula Semula</button>
+      </div>
+    </div>
+
+    <div class="kid-banner">
+      Angkat tangan adik ke KIRI (Makanan Wira) atau ke KANAN (Elak Jajan)!
+    </div>
+
+    <!-- Arena Permainan: Kiri (Wira) - Tengah (Kad Gambar) - Kanan (Jajan) -->
+    <div class="play-arena">
+      
+      <!-- ZON KIRI: MAKANAN WIRA SIHAT -->
+      <div class="kid-zone zone-wira" data-zone="WIRA">
+        <span class="zone-tag">Pilih Ini! (Kiri)</span>
+        
+        <!-- Lukisan SVG Perisai Wira Sihat -->
+        <div class="zone-icon-box">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 8 L88 22 V50 C88 74 50 92 50 92 C50 92 12 74 12 50 V22 Z" fill="#10b981" stroke="#ffffff" stroke-width="5"/>
+            <path d="M33 52 L45 64 L69 38" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <div>
+          <div class="zone-big-title">Makanan Wira Sihat</div>
+          <div class="zone-sub">Bagi badan kuat, tinggi, pintar & gigi cantik!</div>
+        </div>
+        <div class="dwell-bar-bg"><div class="dwell-bar-fill"></div></div>
+      </div>
+
+      <!-- KAD TENGAH: GAMBAR SVG MAKANAN -->
+      <div class="center-card">
+        <div class="svg-illustration" id="food-svg-box"></div>
+        <div>
+          <div class="food-kid-title" id="food-title">Memuatkan...</div>
+          <div class="food-kid-question">Adakah ini Makanan Wira atau Jajan?</div>
+        </div>
+      </div>
+
+      <!-- ZON KANAN: MAKANAN JAJAN / KURANGKAN -->
+      <div class="kid-zone zone-jajan" data-zone="JAJAN">
+        <span class="zone-tag">Elakkan! (Kanan)</span>
+
+        <!-- Lukisan SVG Pangkah Merah -->
+        <div class="zone-icon-box">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="40" fill="#f43f5e" stroke="#ffffff" stroke-width="5"/>
+            <path d="M34 34 L66 66 M66 34 L34 66" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
+          </svg>
+        </div>
+
+        <div>
+          <div class="zone-big-title">Makanan Jajan</div>
+          <div class="zone-sub">Terlalu manis atau masin. Buat gigi cepat rosak!</div>
+        </div>
+        <div class="dwell-bar-bg"><div class="dwell-bar-fill"></div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Notifikasi Maklum Balas -->
+  <div id="feedback-toast">
+    <div class="fb-status" id="fb-status-text">HEBAT!</div>
+    <div class="fb-fact" id="fb-fact-text">Penerangan ringkas di sini.</div>
+  </div>
+
+  <!-- Modal Tamat Permainan -->
+  <div class="modal-overlay" id="end-modal">
+    <div class="modal-box">
+      <div class="modal-title">Tahniah Adik Wira Sihat!</div>
+      <p style="color: #e2e8f0; font-weight: 700;">Jumlah Markah Bintang Adik:</p>
+      <div class="modal-score" id="final-score">100 / 100</div>
+      <p id="final-message" style="color: #ffffff; font-size: 1.1rem; line-height: 1.5; font-weight: 600;"></p>
+      <button class="btn-primary" onclick="resetGame()">Main Lagi (Kawan Seterusnya)</button>
+    </div>
+  </div>
+
+  <!-- Modal Laporan Output Program -->
+  <div class="modal-overlay" id="report-modal">
+    <div class="modal-box">
+      <div class="modal-title">Rekod Output: Modul Kanak-Kanak</div>
+      <p style="color: #94a3b8; font-size: 0.88rem;">Data disimpan secara tempatan di dalam peranti ini.</p>
+      <div class="report-summary" id="report-summary-box">
+        Memuatkan statistik...
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+        <button class="btn-primary" style="margin-top: 0;" onclick="downloadCSVReport()">Muat Turun CSV (Excel)</button>
+        <button class="btn-control" style="padding: 13px 20px;" onclick="closeReportModal()">Tutup</button>
+      </div>
+      <div style="margin-top: 16px;">
+        <button class="btn-danger" onclick="clearLocalRecords()">Padam Semua Rekod (Reset Program Baru)</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- 1. KOLEKSI MAKANAN KANAK-KANAK BESERTA LUKISAN SVG TERBINA DALAM ---
+    const KID_FOOD_BANK = [
+      {
+        name: "Susu Segar Putih",
+        category: "WIRA",
+        fact: "Susu ada Kalsium tinggi untuk buat tulang dan gigi adik jadi sangat kuat!",
+        svg: `<svg viewBox="0 0 120 120">
+          <path d="M35 40 L50 20 L85 20 L85 40 Z" fill="#38bdf8" stroke="#0f172a" stroke-width="4"/>
+          <rect x="35" y="40" width="50" height="65" rx="6" fill="#f8fafc" stroke="#0f172a" stroke-width="4"/>
+          <rect x="35" y="58" width="50" height="24" fill="#0284c7"/>
+          <text x="60" y="75" font-size="14" font-weight="900" fill="#ffffff" text-anchor="middle">SUSU</text>
+        </svg>`
+      },
+      {
+        name: "Buah Pisang Manis",
+        category: "WIRA",
+        fact: "Buah pisang bagi tenaga cepat supaya adik bersemangat belajar dan bermain!",
+        svg: `<svg viewBox="0 0 120 120">
+          <path d="M30 85 C55 95, 90 75, 95 30 C82 25, 85 22, 80 30 C72 62, 50 75, 25 72 Z" fill="#facc15" stroke="#0f172a" stroke-width="4"/>
+          <path d="M88 26 L96 20" stroke="#78350f" stroke-width="6" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        name: "Sayur Brokoli Hijau",
+        category: "WIRA",
+        fact: "Sayur hijau ada banyak vitamin yang melindungi badan adik daripada jatuh sakit!",
+        svg: `<svg viewBox="0 0 120 120">
+          <rect x="48" y="65" width="24" height="38" rx="6" fill="#84cc16" stroke="#0f172a" stroke-width="4"/>
+          <circle cx="42" cy="52" r="20" fill="#15803d" stroke="#0f172a" stroke-width="4"/>
+          <circle cx="78" cy="52" r="20" fill="#15803d" stroke="#0f172a" stroke-width="4"/>
+          <circle cx="60" cy="36" r="24" fill="#16a34a" stroke="#0f172a" stroke-width="4"/>
+        </svg>`
+      },
+      {
+        name: "Ikan Masak Segar",
+        category: "WIRA",
+        fact: "Ikan kaya dengan protein dan Omega-3 yang bantu otak adik jadi bijak!",
+        svg: `<svg viewBox="0 0 120 120">
+          <path d="M88 60 L110 40 L110 80 Z" fill="#f97316" stroke="#0f172a" stroke-width="4"/>
+          <ellipse cx="55" cy="60" rx="38" ry="24" fill="#38bdf8" stroke="#0f172a" stroke-width="4"/>
+          <circle cx="34" cy="54" r="5" fill="#0f172a"/>
+          <path d="M52 48 Q65 60 52 72" fill="none" stroke="#0f172a" stroke-width="4"/>
+        </svg>`
+      },
+      {
+        name: "Telur Rebus",
+        category: "WIRA",
+        fact: "Telur ada protein hebat untuk bantu otot dan badan adik cepat membesar!",
+        svg: `<svg viewBox="0 0 120 120">
+          <path d="M60 18 C35 18, 28 55, 28 74 C28 96, 42 104, 60 104 C78 104, 92 96, 92 74 C92 55, 85 18, 60 18 Z" fill="#f8fafc" stroke="#0f172a" stroke-width="4"/>
+          <circle cx="60" cy="70" r="18" fill="#f59e0b" stroke="#0f172a" stroke-width="3"/>
+        </svg>`
+      },
+      {
+        name: "Buah Epal Merah",
+        category: "WIRA",
+        fact: "Epal segar penuh dengan vitamin dan serat yang baik untuk perut adik!",
+        svg: `<svg viewBox="0 0 120 120">
+          <path d="M60 32 C60 20, 68 14, 72 14" fill="none" stroke="#78350f" stroke-width="5" stroke-linecap="round"/>
+          <path d="M62 24 C75 18, 85 26, 72 32 Z" fill="#22c55e" stroke="#0f172a" stroke-width="3"/>
+          <path d="M60 35 C42 25, 22 40, 25 68 C28 92, 48 104, 60 96 C72 104, 92 92, 95 68 C98 40, 78 25, 60 35 Z" fill="#ef4444" stroke="#0f172a" stroke-width="4"/>
+        </svg>`
+      },
+      {
+        name: "Lobak Merah Rangup",
+        category: "WIRA",
+        fact: "Lobak merah ada Vitamin A yang sangat bagus untuk mata adik melihat dengan jelas!",
+        svg: `<svg viewBox="0 0 120 120">
+          <path d="M60 18 L48 8 M60 18 L60 6 M60 18 L72 8" stroke="#16a34a" stroke-width="6" stroke-linecap="round"/>
+          <path d="M40 24 L80 24 L60 106 Z" fill="#f97316" stroke="#0f172a" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M48 45 L65 45 M52 65 L68 65" stroke="#7c2d12" stroke-width="4" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        name: "Air Kosong Bersih",
+        category: "WIRA",
+        fact: "Air kosong adalah minuman paling baik supaya badan adik sentiasa segar dan sihat!",
+        svg: `<svg viewBox="0 0 120 120">
+          <path d="M34 24 L86 24 L78 100 L42 100 Z" fill="#e0f2fe" stroke="#0f172a" stroke-width="4"/>
+          <path d="M38 50 L82 50 L77 97 L43 97 Z" fill="#38bdf8"/>
+        </svg>`
+      },
+      {
+        name: "Gula-Gula Lolipop",
+        category: "JAJAN",
+        fact: "Gula-gula tinggi gula! Kalau selalu makan, kuman akan buat gigi adik cepat berlubang.",
+        svg: `<svg viewBox="0 0 120 120">
+          <rect x="56" y="65" width="8" height="45" fill="#e2e8f0" stroke="#0f172a" stroke-width="3"/>
+          <circle cx="60" cy="44" r="28" fill="#ec4899" stroke="#0f172a" stroke-width="4"/>
+          <path d="M60 44 C68 44, 72 34, 60 30 C46 26, 40 46, 54 56 C68 64, 82 48, 76 34" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        name: "Air Tin Berkarbonat",
+        category: "JAJAN",
+        fact: "Satu tin air bergas ada sangat banyak gula tersembunyi yang tidak baik untuk kesihatan!",
+        svg: `<svg viewBox="0 0 120 120">
+          <rect x="36" y="24" width="48" height="76" rx="8" fill="#ef4444" stroke="#0f172a" stroke-width="4"/>
+          <rect x="38" y="20" width="44" height="6" fill="#94a3b8" stroke="#0f172a" stroke-width="3"/>
+          <path d="M36 52 L84 68" stroke="#ffffff" stroke-width="8"/>
+        </svg>`
+      },
+      {
+        name: "Donat Salut Gula",
+        category: "JAJAN",
+        fact: "Donat manis tinggi gula dan minyak. Makan sekali-sekala sahaja ya!",
+        svg: `<svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="38" fill="#f59e0b" stroke="#0f172a" stroke-width="4"/>
+          <circle cx="60" cy="60" r="30" fill="#f43f5e"/>
+          <circle cx="60" cy="60" r="13" fill="#ffffff" stroke="#0f172a" stroke-width="4"/>
+        </svg>`
+      },
+      {
+        name: "Kentang Goreng Masin",
+        category: "JAJAN",
+        fact: "Makanan segera tinggi garam dan minyak gorengan. Pilih ubi atau buah segar lebih bagus!",
+        svg: `<svg viewBox="0 0 120 120">
+          <rect x="40" y="18" width="10" height="50" fill="#facc15" stroke="#0f172a" stroke-width="3"/>
+          <rect x="55" y="14" width="10" height="55" fill="#facc15" stroke="#0f172a" stroke-width="3"/>
+          <rect x="70" y="20" width="10" height="48" fill="#facc15" stroke="#0f172a" stroke-width="3"/>
+          <path d="M32 52 L88 52 L80 102 L40 102 Z" fill="#ef4444" stroke="#0f172a" stroke-width="4"/>
+        </svg>`
+      }
+    ];
+
+    // --- 2. PENJANA BUNYI CERIA (WEB AUDIO API) ---
+    let audioCtx = null;
+    function playSound(type) {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        if (type === 'hover') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(580, now);
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.06);
+          osc.start(now);
+          osc.stop(now + 0.06);
+        } else if (type === 'correct') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.setValueAtTime(659.25, now + 0.09);
+          osc.frequency.setValueAtTime(783.99, now + 0.18);
+          osc.frequency.setValueAtTime(1046.50, now + 0.27);
+          gain.gain.setValueAtTime(0.28, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.5);
+          osc.start(now);
+          osc.stop(now + 0.5);
+        } else if (type === 'wrong') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(240, now);
+          osc.frequency.linearRampToValueAtTime(160, now + 0.3);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.35);
+        }
+      } catch (e) {}
+    }
+
+    // --- 3. PEMBOLEHUBAH PERMAINAN ---
+    let questions = [];
+    let currentIndex = 0;
+    let score = 0;
+    let isProcessingFeedback = false;
+    let activeControlMode = "Sentuhan / Tetikus";
+
+    // Koordinat Kursor
+    let targetX = window.innerWidth / 2;
+    let targetY = window.innerHeight / 2;
+    let currentX = targetX;
+    let currentY = targetY;
+
+    // Masa Tahan Pantas untuk Kanak-Kanak (0.45 saat sahaja)
+    const DWELL_DURATION = 450;
+    let activeZoneEl = null;
+    let dwellStartTime = 0;
+
+    // Elemen DOM
+    const cursorEl = document.getElementById('hand-cursor');
+    const foodSvgBoxEl = document.getElementById('food-svg-box');
+    const foodTitleEl = document.getElementById('food-title');
+    const qCounterEl = document.getElementById('q-counter');
+    const scoreValEl = document.getElementById('score-val');
+    const toastEl = document.getElementById('feedback-toast');
+    const fbStatusEl = document.getElementById('fb-status-text');
+    const fbFactEl = document.getElementById('fb-fact-text');
+    const endModalEl = document.getElementById('end-modal');
+    const reportModalEl = document.getElementById('report-modal');
+    const kidZones = document.querySelectorAll('.kid-zone');
+
+    function shuffleQuestions() {
+      const copy = [...KID_FOOD_BANK];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy.slice(0, 10);
+    }
+
+    function resetGame() {
+      questions = shuffleQuestions();
+      currentIndex = 0;
+      score = 0;
+      scoreValEl.textContent = score;
+      endModalEl.style.display = 'none';
+      loadCurrentKidFood();
+    }
+
+    function loadCurrentKidFood() {
+      if (currentIndex >= questions.length) {
+        showEndScreen();
+        return;
+      }
+
+      isProcessingFeedback = false;
+      clearAllZones();
+
+      const item = questions[currentIndex];
+      foodSvgBoxEl.innerHTML = item.svg;
+      foodTitleEl.textContent = item.name;
+      qCounterEl.textContent = `${currentIndex + 1} / ${questions.length}`;
+    }
+
+    // Gelung Animasi Utama (60fps)
+    function updateLoop(timestamp) {
+      currentX += (targetX - currentX) * 0.38;
+      currentY += (targetY - currentY) * 0.38;
+
+      cursorEl.style.left = `${currentX}px`;
+      cursorEl.style.top = `${currentY}px`;
+
+      if (!isProcessingFeedback && endModalEl.style.display !== 'flex' && reportModalEl.style.display !== 'flex') {
+        let hoveredZone = null;
+        kidZones.forEach(zone => {
+          const rect = zone.getBoundingClientRect();
+          if (
+            currentX >= rect.left &&
+            currentX <= rect.right &&
+            currentY >= rect.top &&
+            currentY <= rect.bottom
+          ) {
+            hoveredZone = zone;
+          }
+        });
+
+        if (hoveredZone) {
+          if (activeZoneEl !== hoveredZone) {
+            clearAllZones();
+            activeZoneEl = hoveredZone;
+            activeZoneEl.classList.add('active-hover');
+            dwellStartTime = timestamp;
+            playSound('hover');
+          } else {
+            const elapsed = timestamp - dwellStartTime;
+            const progress = Math.min(100, (elapsed / DWELL_DURATION) * 100);
+            const barFill = activeZoneEl.querySelector('.dwell-bar-fill');
+            if (barFill) barFill.style.width = `${progress}%`;
+
+            if (elapsed >= DWELL_DURATION) {
+              evaluateAnswer(activeZoneEl.dataset.zone);
+              clearAllZones();
+            }
+          }
+        } else {
+          clearAllZones();
+        }
+      }
+
+      requestAnimationFrame(updateLoop);
+    }
+
+    function clearAllZones() {
+      activeZoneEl = null;
+      kidZones.forEach(z => {
+        z.classList.remove('active-hover');
+        const bar = z.querySelector('.dwell-bar-fill');
+        if (bar) bar.style.width = '0%';
+      });
+    }
+
+    function evaluateAnswer(selectedCategory) {
+      isProcessingFeedback = true;
+      const item = questions[currentIndex];
+      const isCorrect = selectedCategory === item.category;
+
+      if (isCorrect) {
+        score += 10;
+        scoreValEl.textContent = score;
+        playSound('correct');
+        fbStatusEl.textContent = "YAY, PANDAI ADIK! (+10 Bintang)";
+        fbStatusEl.style.color = "#10b981";
+        toastEl.style.borderColor = "#10b981";
+      } else {
+        playSound('wrong');
+        fbStatusEl.textContent = "OOPS, CUBA LAGI!";
+        fbStatusEl.style.color = "#f43f5e";
+        toastEl.style.borderColor = "#f43f5e";
+      }
+
+      fbFactEl.textContent = `${item.name}: ${item.fact}`;
+      toastEl.classList.add('show');
+
+      setTimeout(() => {
+        toastEl.classList.remove('show');
+        currentIndex++;
+        loadCurrentKidFood();
+      }, 3000);
+    }
+
+    function showEndScreen() {
+      const totalPossible = questions.length * 10;
+      document.getElementById('final-score').textContent = `${score} / ${totalPossible}`;
+      
+      let msg = "";
+      if (score >= 80) {
+        msg = "Wah, hebatnya! Adik memang Wira Pemakanan Sihat yang bijak memilih makanan berkhasiat setiap hari!";
+      } else if (score >= 50) {
+        msg = "Bagus adik! Ingat makan sayur, buah, ikan dan minum susu supaya badan cepat tinggi dan kuat.";
+      } else {
+        msg = "Terima kasih mencuba! Lepas ni kita sama-sama kurangkan jajan dan makan makanan berkhasiat ya!";
+      }
+      document.getElementById('final-message').textContent = msg;
+      endModalEl.style.display = 'flex';
+
+      saveLocalRecord(score, totalPossible);
+    }
+
+    // --- 4. SISTEM REKOD LAPORAN TEMPATAN (LOCALSTORAGE CSV ASING) ---
+    const STORAGE_KEY = "rekod_wira_bekal_kanak";
+
+    function getRecords() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveLocalRecord(finalScore, maxScore) {
+      const existing = getRecords();
+      const now = new Date();
+      const tarikh = now.toLocaleDateString('en-GB', { timeZone: 'Asia/Kuching' });
+      const masa = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kuching' });
+
+      existing.push({
+        bil: existing.length + 1,
+        tarikhMasa: `${tarikh} ${masa}`,
+        markah: finalScore,
+        markahPenuh: maxScore,
+        modKawalan: activeControlMode
+      });
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+      updateReportButtonUI();
+    }
+
+    function updateReportButtonUI() {
+      const existing = getRecords();
+      const btn = document.getElementById('btn-open-report');
+      if (btn) {
+        btn.textContent = `Laporan (${existing.length})`;
+      }
+    }
+
+    function openReportModal() {
+      const existing = getRecords();
+      const box = document.getElementById('report-summary-box');
+
+      if (existing.length === 0) {
+        box.innerHTML = "Belum ada rekod kanak-kanak yang menamatkan permainan setakat ini.";
+      } else {
+        const totalPlayers = existing.length;
+        const sumScore = existing.reduce((acc, r) => acc + Number(r.markah), 0);
+        const avgScore = (sumScore / totalPlayers).toFixed(1);
+        const highAchievers = existing.filter(r => Number(r.markah) >= 80).length;
+        const lastPlayed = existing[existing.length - 1].tarikhMasa;
+
+        box.innerHTML = `
+          <div><strong>Modul:</strong> Permainan Kanak-Kanak (Wira Sihat)</div>
+          <div><strong>Jumlah Pemain Selesai:</strong> ${totalPlayers} orang</div>
+          <div><strong>Purata Skor Bintang:</strong> ${avgScore} / 100</div>
+          <div><strong>Skor Cemerlang (80 ke atas):</strong> ${highAchievers} orang</div>
+          <div><strong>Rekod Terakhir:</strong> ${lastPlayed}</div>
+        `;
+      }
+      reportModalEl.style.display = 'flex';
+    }
+
+    function closeReportModal() {
+      reportModalEl.style.display = 'none';
+    }
+
+    function downloadCSVReport() {
+      const existing = getRecords();
+      if (existing.length === 0) {
+        alert("Tiada data pemain untuk dimuat turun.");
+        return;
+      }
+
+      let csvContent = "Bil,Tarikh dan Masa,Markah Bintang,Markah Penuh,Mod Kawalan\n";
+      existing.forEach(row => {
+        csvContent += `${row.bil},"${row.tarikhMasa}",${row.markah},${row.markahPenuh},"${row.modKawalan}"\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", "Laporan_Output_Game_Kanak_Kanak.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function clearLocalRecords() {
+      if (confirm("Adakah anda pasti mahu memadam semua rekod bagi modul Kanak-Kanak ini?")) {
+        localStorage.removeItem(STORAGE_KEY);
+        updateReportButtonUI();
+        openReportModal();
+      }
+    }
+
+    // --- 5. KAWALAN SENTUHAN SKRIN & TETIKUS (FALLBACK) ---
+    window.addEventListener('pointermove', (e) => {
+      targetX = e.clientX;
+      targetY = e.clientY;
+    });
+
+    window.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 0) {
+        targetX = e.touches[0].clientX;
+        targetY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    // --- 6. KAWALAN KAMERA MEDIAPIPE HANDS ---
+    const videoElement = document.getElementById('webcam-video');
+    const camStatusEl = document.getElementById('cam-status');
+
+    function onResults(results) {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        activeControlMode = "Kamera (Hand Tracking)";
+        const palmCenter = results.multiHandLandmarks[0][9];
+        targetX = (1 - palmCenter.x) * window.innerWidth;
+        targetY = palmCenter.y * window.innerHeight;
+      }
+    }
+
+    async function initCamera() {
+      try {
+        const hands = new Hands({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.6,
+          minTrackingConfidence: 0.6
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+          onFrame: async () => {
+            await hands.send({ image: videoElement });
+          },
+          width: 640,
+          height: 480
+        });
+
+        await camera.start();
+        camStatusEl.textContent = "Kamera Aktif: Hayun tangan ke Kiri atau Kanan! (Tiada video dirakam).";
+        camStatusEl.style.color = "#facc15";
+      } catch (err) {
+        console.warn("Kamera tidak dapat diakses, menggunakan mod sentuhan/tetikus:", err);
+        camStatusEl.textContent = "Mod Sentuhan/Tetikus Aktif (Kamera tidak dikesan).";
+      }
+    }
+
+    // Mulakan Permainan
+    updateReportButtonUI();
+    resetGame();
+    requestAnimationFrame(updateLoop);
+    initCamera();
+  </script>
+</body>
+</html>
